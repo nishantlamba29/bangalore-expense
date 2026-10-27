@@ -98,6 +98,7 @@
                 <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Spent (This Month)</p>
                 <h3 class="text-xl sm:text-2xl font-extrabold mt-1 text-emerald-400" id="statTotalSpent">₹0</h3>
                 <p class="text-[11px] text-slate-400 mt-1 truncate" id="statExpenseCount">0 transactions logged</p>
+                <p class="text-[11px] mt-0.5 truncate text-slate-500" id="statMoM"></p>
                 <div class="absolute right-3 top-3 opacity-10 text-emerald-400">
                     <i class="fa-solid fa-wallet text-4xl"></i>
                 </div>
@@ -155,6 +156,9 @@
                 </div>
             </div>
 
+            <!-- Payment Split -->
+            <p class="text-[11px] text-slate-400" id="paymentSplitText"></p>
+
             <!-- Progress Bar -->
             <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden p-0.5 border border-slate-700/50">
                 <div id="budgetProgressBar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500 w-0"></div>
@@ -173,25 +177,9 @@
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <i class="fa-solid fa-bolt text-amber-400"></i> Bangalore Quick Logger
                 </p>
-                <span class="text-[10px] text-slate-500">Tap to instantly record</span>
+                <span class="text-[10px] text-slate-500">Your most repeated spends - tap to record</span>
             </div>
-            <div class="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none text-xs">
-                <button onclick="quickAdd('Swiggy Lunch', 250, 'Swiggy/Zomato & Dining', 'UPI')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-orange-400 transition whitespace-nowrap flex items-center gap-2 font-medium shadow-sm active:scale-95">
-                    <span>🍕 Swiggy</span> <span class="text-slate-200 font-bold">₹250</span>
-                </button>
-                <button onclick="quickAdd('Blinkit Groceries', 350, 'Groceries & Blinkit', 'UPI')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-yellow-400 transition whitespace-nowrap flex items-center gap-2 font-medium shadow-sm active:scale-95">
-                    <span>🛒 Blinkit</span> <span class="text-slate-200 font-bold">₹350</span>
-                </button>
-                <button onclick="quickAdd('Namma Metro', 40, 'Uber/Auto/Metro', 'UPI')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-purple-400 transition whitespace-nowrap flex items-center gap-2 font-medium shadow-sm active:scale-95">
-                    <span>🚇 Metro</span> <span class="text-slate-200 font-bold">₹40</span>
-                </button>
-                <button onclick="quickAdd('Auto Fare', 120, 'Uber/Auto/Metro', 'UPI')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 transition whitespace-nowrap flex items-center gap-2 font-medium shadow-sm active:scale-95">
-                    <span>🛺 Auto</span> <span class="text-slate-200 font-bold">₹120</span>
-                </button>
-                <button onclick="quickAdd('Filter Coffee & Snack', 60, 'Swiggy/Zomato & Dining', 'UPI')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 transition whitespace-nowrap flex items-center gap-2 font-medium shadow-sm active:scale-95">
-                    <span>☕ Coffee</span> <span class="text-slate-200 font-bold">₹60</span>
-                </button>
-            </div>
+            <div id="quickChips" class="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none text-xs"></div>
         </div>
 
         <!-- Main Form & Charts Grid -->
@@ -230,6 +218,7 @@
                             <option value="Bills & Utilities">⚡ Bills &amp; BESCOM / Wifi</option>
                             <option value="Shopping (Myntra/Amazon)">🛍️ Shopping (Myntra / Amazon)</option>
                             <option value="Entertainment/Pubs">🍻 Pubs / Nightlife / Movies</option>
+                            <option value="Travel & Trips">✈️ Travel (Flights / Bus / Trips)</option>
                             <option value="Miscellaneous" selected>📦 Miscellaneous</option>
                         </select>
                     </div>
@@ -340,6 +329,7 @@
                             <option value="Bills & Utilities">Bills &amp; Utilities</option>
                             <option value="Shopping (Myntra/Amazon)">Shopping (Myntra/Amazon)</option>
                             <option value="Entertainment/Pubs">Entertainment/Pubs</option>
+                            <option value="Travel & Trips">Travel &amp; Trips</option>
                             <option value="Miscellaneous">Miscellaneous</option>
                         </select>
                     </div>
@@ -458,7 +448,21 @@
       sheet.appendRow(["ID", "Date", "Category", "Amount (INR)", "Payment Method", "Description"]);
     }
     var data = JSON.parse(e.postData.contents);
-    sheet.appendRow([data.id, data.date, data.category, data.amount, data.paymentMethod, data.description]);
+    var row = 0;
+    var last = sheet.getLastRow();
+    if (last > 1) {
+      var ids = sheet.getRange(2, 1, last - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]) === String(data.id)) { row = i + 2; break; }
+      }
+    }
+    if (data.action === "delete") {
+      if (row) sheet.deleteRow(row);
+    } else {
+      var values = [[data.id, data.date, data.category, data.amount, data.paymentMethod, data.description]];
+      if (row) sheet.getRange(row, 1, 1, 6).setValues(values);
+      else sheet.appendRow(values[0]);
+    }
     return ContentService.createTextOutput(JSON.stringify({"result": "success"})).setMimeType(ContentService.MimeType.JSON);
   } catch(error) {
     return ContentService.createTextOutput(JSON.stringify({"result": "error", "message": error.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -561,6 +565,7 @@
             'Bills & Utilities': '#06b6d4',
             'Shopping (Myntra/Amazon)': '#ec4899',
             'Entertainment/Pubs': '#f43f5e',
+            'Travel & Trips': '#14b8a6',
             'Miscellaneous': '#64748b'
         };
 
@@ -685,7 +690,7 @@
         }
 
         // Asynchronous POST to Google Apps Script Web App Endpoint
-        async function postToGoogleSheets(entry) {
+        async function postToGoogleSheets(entry, action = "upsert") {
             if (!googleScriptUrl) return;
 
             try {
@@ -694,7 +699,7 @@
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(entry)
+                    body: JSON.stringify({ ...entry, action })
                 });
                 showToast("Synced to Google Sheet!", "success");
             } catch (err) {
@@ -721,10 +726,14 @@
 
         function deleteExpense(id) {
             if (confirm("Delete this entry?")) {
+                const removed = expenses.find(x => x.id === id);
                 expenses = expenses.filter(x => x.id !== id);
                 saveState();
                 renderAll();
                 showToast("Expense deleted");
+                if (removed && googleScriptUrl) {
+                    postToGoogleSheets(removed, "delete");
+                }
             }
         }
 
@@ -741,6 +750,7 @@
             renderExpenses();
             updateSummaryCardsAndBudget();
             renderCharts();
+            renderQuickChips();
         }
 
         function formatINR(val) {
@@ -752,6 +762,88 @@
             if (selected && selected !== 'ALL') return selected;
             const now = new Date();
             return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+
+        // Quick chips: most repeated past entries, topped up with Bangalore presets
+        const presetChips = [
+            { description: 'Swiggy Lunch', amount: 250, category: 'Swiggy/Zomato & Dining', paymentMethod: 'UPI', icon: '🍕' },
+            { description: 'Blinkit Groceries', amount: 350, category: 'Groceries & Blinkit', paymentMethod: 'UPI', icon: '🛒' },
+            { description: 'Namma Metro', amount: 40, category: 'Uber/Auto/Metro', paymentMethod: 'UPI', icon: '🚇' },
+            { description: 'Auto Fare', amount: 120, category: 'Uber/Auto/Metro', paymentMethod: 'UPI', icon: '🛺' },
+            { description: 'Filter Coffee & Snack', amount: 60, category: 'Swiggy/Zomato & Dining', paymentMethod: 'UPI', icon: '☕' }
+        ];
+        let activeChips = [];
+
+        function computeChips() {
+            const groups = {};
+            expenses.forEach(e => {
+                const desc = (e.description || '').trim();
+                if (!desc || desc === e.category) return;
+                const key = desc.toLowerCase();
+                if (!groups[key]) groups[key] = { count: 0, latest: e };
+                groups[key].count++;
+                if (e.date > groups[key].latest.date) groups[key].latest = e;
+            });
+            const frequent = Object.values(groups)
+                .filter(g => g.count >= 2)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5)
+                .map(g => ({ description: g.latest.description, amount: g.latest.amount, category: g.latest.category, paymentMethod: g.latest.paymentMethod, icon: '🔁' }));
+            const used = new Set(frequent.map(c => c.description.toLowerCase()));
+            const fill = presetChips.filter(c => !used.has(c.description.toLowerCase()));
+            return frequent.concat(fill).slice(0, 7);
+        }
+
+        function renderQuickChips() {
+            activeChips = computeChips();
+            const box = document.getElementById('quickChips');
+            box.innerHTML = '';
+            activeChips.forEach((c, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition whitespace-nowrap flex items-center gap-2 font-medium shadow-sm active:scale-95';
+                btn.onclick = () => quickAdd(c.description, c.amount, c.category, c.paymentMethod);
+                const label = document.createElement('span');
+                label.textContent = `${c.icon} ${c.description}`;
+                const amt = document.createElement('span');
+                amt.className = 'text-emerald-400 font-bold';
+                amt.textContent = formatINR(c.amount);
+                btn.append(label, amt);
+                box.appendChild(btn);
+            });
+        }
+
+        function getPrevMonthStr(yyyyMM) {
+            const [y, m] = yyyyMM.split('-').map(Number);
+            const d = new Date(y, m - 2, 1);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        function updateInsights(currentMonthStr, currentMonthExpenses, totalSpent) {
+            // Month-over-month, compared on the same day-of-month when viewing the running month
+            const prevStr = getPrevMonthStr(currentMonthStr);
+            const now = new Date();
+            const isCurrentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}` === currentMonthStr;
+            const prevExpenses = expenses.filter(e => e.date.startsWith(prevStr) && (!isCurrentMonth || parseInt(e.date.slice(8, 10)) <= now.getDate()));
+            const prevTotal = prevExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const momEl = document.getElementById('statMoM');
+            if (prevTotal > 0) {
+                const pct = Math.round(((totalSpent - prevTotal) / prevTotal) * 100);
+                const up = pct > 0;
+                momEl.className = `text-[11px] mt-0.5 truncate ${up ? 'text-rose-400' : 'text-emerald-400'}`;
+                momEl.textContent = `${up ? '▲' : '▼'} ${Math.abs(pct)}% vs ${getMonthName(prevStr)}${isCurrentMonth ? ' (same day)' : ''}`;
+            } else {
+                momEl.className = 'text-[11px] mt-0.5 truncate text-slate-500';
+                momEl.textContent = '';
+            }
+
+            // Payment split
+            const byPay = {};
+            currentMonthExpenses.forEach(e => byPay[e.paymentMethod] = (byPay[e.paymentMethod] || 0) + e.amount);
+            const split = document.getElementById('paymentSplitText');
+            const parts = Object.keys(byPay).sort((a, b) => byPay[b] - byPay[a])
+                .map(k => `${k}: ${formatINR(byPay[k])} (${totalSpent ? Math.round(byPay[k] / totalSpent * 100) : 0}%)`);
+            split.textContent = parts.length ? `Paid via - ${parts.join(' · ')}` : '';
         }
 
         function updateSummaryCardsAndBudget() {
@@ -775,6 +867,7 @@
             });
 
             const remaining = budgetTarget - totalSpent;
+            updateInsights(currentMonthStr, currentMonthExpenses, totalSpent);
 
             document.getElementById('statTotalSpent').innerText = formatINR(totalSpent);
             document.getElementById('statExpenseCount').innerText = `${currentMonthExpenses.length} entries in ${getMonthName(currentMonthStr)}`;
@@ -1062,9 +1155,10 @@
                 return;
             }
 
+            const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
             let csv = "ID,Date,Category,Amount,Payment Method,Description\n";
             expenses.forEach(e => {
-                csv += `"${e.id}","${e.date}","${e.category}",${e.amount},"${e.paymentMethod}","${e.description}"\n`;
+                csv += [q(e.id), q(e.date), q(e.category), e.amount, q(e.paymentMethod), q(e.description)].join(",") + "\n";
             });
 
             const link = document.createElement("a");
