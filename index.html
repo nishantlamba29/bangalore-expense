@@ -458,7 +458,21 @@
       sheet.appendRow(["ID", "Date", "Category", "Amount (INR)", "Payment Method", "Description"]);
     }
     var data = JSON.parse(e.postData.contents);
-    sheet.appendRow([data.id, data.date, data.category, data.amount, data.paymentMethod, data.description]);
+    var row = 0;
+    var last = sheet.getLastRow();
+    if (last > 1) {
+      var ids = sheet.getRange(2, 1, last - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]) === String(data.id)) { row = i + 2; break; }
+      }
+    }
+    if (data.action === "delete") {
+      if (row) sheet.deleteRow(row);
+    } else {
+      var values = [[data.id, data.date, data.category, data.amount, data.paymentMethod, data.description]];
+      if (row) sheet.getRange(row, 1, 1, 6).setValues(values);
+      else sheet.appendRow(values[0]);
+    }
     return ContentService.createTextOutput(JSON.stringify({"result": "success"})).setMimeType(ContentService.MimeType.JSON);
   } catch(error) {
     return ContentService.createTextOutput(JSON.stringify({"result": "error", "message": error.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -685,7 +699,7 @@
         }
 
         // Asynchronous POST to Google Apps Script Web App Endpoint
-        async function postToGoogleSheets(entry) {
+        async function postToGoogleSheets(entry, action = "upsert") {
             if (!googleScriptUrl) return;
 
             try {
@@ -694,7 +708,7 @@
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(entry)
+                    body: JSON.stringify({ ...entry, action })
                 });
                 showToast("Synced to Google Sheet!", "success");
             } catch (err) {
@@ -721,10 +735,14 @@
 
         function deleteExpense(id) {
             if (confirm("Delete this entry?")) {
+                const removed = expenses.find(x => x.id === id);
                 expenses = expenses.filter(x => x.id !== id);
                 saveState();
                 renderAll();
                 showToast("Expense deleted");
+                if (removed && googleScriptUrl) {
+                    postToGoogleSheets(removed, "delete");
+                }
             }
         }
 
@@ -1062,9 +1080,10 @@
                 return;
             }
 
+            const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
             let csv = "ID,Date,Category,Amount,Payment Method,Description\n";
             expenses.forEach(e => {
-                csv += `"${e.id}","${e.date}","${e.category}",${e.amount},"${e.paymentMethod}","${e.description}"\n`;
+                csv += [q(e.id), q(e.date), q(e.category), e.amount, q(e.paymentMethod), q(e.description)].join(",") + "\n";
             });
 
             const link = document.createElement("a");
